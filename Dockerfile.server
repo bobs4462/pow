@@ -1,0 +1,35 @@
+FROM rust:latest AS builder
+
+# Create appuser
+ENV USER=pow
+ENV UID=10001
+
+RUN adduser \
+    --disabled-password \
+	--gecos "" \
+    --shell "/sbin/nologin" \
+    --no-create-home \
+    --uid "${UID}" \
+    "${USER}"
+
+WORKDIR /pow
+
+# hack to cache dependencies
+COPY dummy.rs .
+COPY Cargo.toml .
+RUN cargo build --release --bin dummy
+
+COPY . .
+
+RUN cargo build --release --bin server
+
+
+FROM gcr.io/distroless/cc
+
+WORKDIR /pow
+
+# Copy our build
+COPY --from=builder /pow/target/release/server ./
+
+CMD ["/pow/server", "-l", "0.0.0.0:9091", "-m", "4096", "-z", "20", "--length", "1024"]
+
